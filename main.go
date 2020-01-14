@@ -171,7 +171,7 @@ func collectErrors(source string, lineNumbersMustMatch bool) ([]errorInfo, error
 			return nil, err
 		}
 
-		code, err := strconv.Atoi(record[0])
+		code, err := strconv.Atoi(strings.TrimSpace(record[0]))
 		if err != nil {
 			return nil, fmt.Errorf("invalid record %d: %s", lineNumber, strings.Join(record, ","))
 		}
@@ -182,9 +182,9 @@ func collectErrors(source string, lineNumbersMustMatch bool) ([]errorInfo, error
 
 		errors = append(errors, errorInfo{
 			Code:        uint(code),
-			Prefix:      record[1],
-			Label:       record[2],
-			Description: record[3],
+			Prefix:      strings.TrimSpace(record[1]),
+			Label:       strings.TrimSpace(record[2]),
+			Description: strings.TrimSpace(record[3]),
 			Source:      source,
 		})
 
