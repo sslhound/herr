@@ -1,6 +1,7 @@
-1,DBG,DebugErrorOne,The first debug error
+1                     ,DBG   ,DebugErrorOne        ,The first debug error
 # comments are ignored
-2,DBG,DebugErrorTwo,The second debug error
-3,MOBIOS,InvalidIOSDevice,The iOS device is invalid.
-5,MOBAND,InvalidAndroidDevice,The Android device is invalid.
-4,MOBAND,InvalidAndroidVersion,The Android version is invalid.
+2                     ,DBG   ,DebugErrorTwo        ,The second debug error
+3                     ,MOBIOS,InvalidIOSDevice     ,The iOS device is invalid.
+5                     ,MOBAND,InvalidAndroidDevice ,The Android device is invalid.
+4                     ,MOBAND,InvalidAndroidVersion,The Android version is invalid.
+6                     ,DBG   ,DebugErrorThree      ,The third debug error          ,DebugErrorTwo

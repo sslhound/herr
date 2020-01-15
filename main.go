@@ -35,6 +35,7 @@ type errorInfo struct {
 	Label       string
 	Description string
 	Source      string
+	ParentLabel string
 }
 
 // This was copied from https://golang.org/pkg/sort/ and modified.
@@ -157,7 +158,7 @@ func collectErrors(source string, lineNumbersMustMatch bool) ([]errorInfo, error
 	csvReader := csv.NewReader(reader)
 	csvReader.Comment = '#'
 	csvReader.TrimLeadingSpace = true
-	csvReader.FieldsPerRecord = 4
+	csvReader.FieldsPerRecord = -1
 
 	lineNumber := 0
 
@@ -170,6 +171,9 @@ func collectErrors(source string, lineNumbersMustMatch bool) ([]errorInfo, error
 			}
 			return nil, err
 		}
+		if len(record) < 4 {
+			return nil, fmt.Errorf("invalid record %d: %s", lineNumber, strings.Join(record, ","))
+		}
 
 		code, err := strconv.Atoi(strings.TrimSpace(record[0]))
 		if err != nil {
@@ -180,12 +184,18 @@ func collectErrors(source string, lineNumbersMustMatch bool) ([]errorInfo, error
 			return nil, fmt.Errorf("line number and record code do not match: %d != %d", lineNumber, code)
 		}
 
+		var parentLabel string
+		if len(record) == 5 {
+			parentLabel = record[4]
+		}
+
 		errors = append(errors, errorInfo{
 			Code:        uint(code),
 			Prefix:      strings.TrimSpace(record[1]),
 			Label:       strings.TrimSpace(record[2]),
 			Description: strings.TrimSpace(record[3]),
 			Source:      source,
+			ParentLabel: parentLabel,
 		})
 
 	}
@@ -327,7 +337,11 @@ func (e {{ .Label }}Error) Error() string {
 }
 
 func (e {{ .Label }}Error) Unwrap() error {
+{{ if .ParentLabel }}
+    return {{ .ParentLabel }}Error{ Err: e.Err }
+{{ else }}
 	return e.Err
+{{ end }}
 }
 
 func (e {{ .Label }}Error) Is(target error) bool {
@@ -401,6 +415,11 @@ func Test{{ .Label }} (t *testing.T) {
     if !errors.Is(errNestErr2, {{ .Label }}Error{}) {
 		t.Errorf("Assertion failed on {{ .Label }}: {{ .Label }}Error{} not identified correctly")
     }
+{{ if .ParentLabel }}
+    if !errors.Is(err2, {{ .ParentLabel }}Error{}) {
+		t.Errorf("Assertion failed on {{ .Label }}: {{ .ParentLabel }}Error{} not identified correctly")
+    }
+{{ end }}
 }
 {{ end }}
 
