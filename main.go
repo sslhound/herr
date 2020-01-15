@@ -331,7 +331,14 @@ func ErrorFromCode(code string) (bool, error) {
         return false, fmt.Errorf("unknown error code: %s", code)
     }
 }
-{{range .Codes }}
+{{ range .Codes }}
+func Wrap{{ .Label }}Error(err error) error {
+	if err == nil {
+		return nil
+	}
+	return {{ .Label }}Error{ Err: err }
+}
+{{ end }}{{ range .Codes }}
 func (e {{ .Label }}Error) Error() string {
     return "{{ .Serialized }}"
 }
