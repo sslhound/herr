@@ -1,0 +1,32 @@
+[
+	{
+		"locale": "en",
+		"key": "DBGAAAAAAAB",
+		"trans": "The first debug error"
+	},
+	{
+		"locale": "en",
+		"key": "DBGAAAAAAAC",
+		"trans": "The second debug error"
+	},
+	{
+		"locale": "en",
+		"key": "DBGAAAAAAAG",
+		"trans": "The third debug error"
+	},
+	{
+		"locale": "en",
+		"key": "MOBANDAAAAAAAE",
+		"trans": "The Android version is invalid."
+	},
+	{
+		"locale": "en",
+		"key": "MOBANDAAAAAAAF",
+		"trans": "The Android device is invalid."
+	},
+	{
+		"locale": "en",
+		"key": "MOBIOSAAAAAAAD",
+		"trans": "The iOS device is invalid."
+	}
+]
