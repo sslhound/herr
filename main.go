@@ -350,6 +350,7 @@ package {{ .Package }}
 
 import (
     "fmt"
+	pkg_errors "github.com/pkg/errors"
 )
 
 type CodedError interface {
@@ -378,11 +379,15 @@ func ErrorFromCode(code string) (bool, error) {
     }
 }
 {{ range .Codes }}
+func New{{ .Label }}Error(err error) error {
+	return pkg_errors.WithStack({{ .Label }}Error{ Err: err })
+}
+
 func Wrap{{ .Label }}Error(err error) error {
 	if err == nil {
 		return nil
 	}
-	return {{ .Label }}Error{ Err: err }
+	return New{{ .Label }}Error(err)
 }
 {{ end }}{{ range .Codes }}
 func (e {{ .Label }}Error) Error() string {
