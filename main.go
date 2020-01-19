@@ -349,8 +349,13 @@ var packageTemplate = template.Must(template.New("").Funcs(template.FuncMap{
 package {{ .Package }}
 
 import (
-    "fmt"
-	pkg_errors "github.com/pkg/errors"
+	"fmt"
+	"io"
+	"path"
+	"runtime"
+	"strconv"
+	"strings"
+    go_errors "errors"
 )
 
 type CodedError interface {
@@ -363,6 +368,7 @@ type CodedError interface {
 {{ range .Codes }}
 type {{ .Label }}Error struct {
     Err error
+    Stack *stack
 }
 {{ end }}
 {{ range .Codes }}var _ CodedError = {{ .Label }}Error{}
@@ -380,7 +386,11 @@ func ErrorFromCode(code string) (bool, error) {
 }
 {{ range .Codes }}
 func New{{ .Label }}Error(err error) error {
-	return pkg_errors.WithStack({{ .Label }}Error{ Err: err })
+{{ if .ParentLabel }}
+	return {{ .Label }}Error{ Err: New{{ .ParentLabel }}Error(err), Stack: callers() }
+{{ else }}
+	return {{ .Label }}Error{ Err: err, Stack: callers() }
+{{ end }}
 }
 
 func Wrap{{ .Label }}Error(err error) error {
@@ -395,11 +405,7 @@ func (e {{ .Label }}Error) Error() string {
 }
 
 func (e {{ .Label }}Error) Unwrap() error {
-{{ if .ParentLabel }}
-    return {{ .ParentLabel }}Error{ Err: e.Err }
-{{ else }}
 	return e.Err
-{{ end }}
 }
 
 func (e {{ .Label }}Error) Is(target error) bool {
@@ -423,10 +429,216 @@ func (e {{ .Label }}Error) Prefix() string {
 }
 
 func (e {{ .Label }}Error) String() string {
-    return "{{ .Serialized }} {{ .Description }}"
+   return "{{ .Serialized }} {{ .Description }}"
+}
+
+func (e {{ .Label }}Error)  Format(s fmt.State, verb rune) {
+	switch verb {
+	case 'v':
+		if s.Flag('+') {
+			fmt.Fprintf(s, "%+v", e.Unwrap())
+			e.Stack.Format(s, verb)
+			return
+		}
+		fallthrough
+	case 's':
+		io.WriteString(s, "{{ .Serialized }}")
+	case 'q':
+		fmt.Fprintf(s, "%q", "{{ .Serialized }}")
+	}
 }
 {{ end }}
 
+// Frame represents a program counter inside a stack frame.
+// For historical reasons if Frame is interpreted as a uintptr
+// its value represents the program counter + 1.
+type Frame uintptr
+
+// pc returns the program counter for this frame;
+// multiple frames may have the same PC value.
+func (f Frame) pc() uintptr { return uintptr(f) - 1 }
+
+// file returns the full path to the file that contains the
+// function for this Frame's pc.
+func (f Frame) file() string {
+	fn := runtime.FuncForPC(f.pc())
+	if fn == nil {
+		return "unknown"
+	}
+	file, _ := fn.FileLine(f.pc())
+	return file
+}
+
+// line returns the line number of source code of the
+// function for this Frame's pc.
+func (f Frame) line() int {
+	fn := runtime.FuncForPC(f.pc())
+	if fn == nil {
+		return 0
+	}
+	_, line := fn.FileLine(f.pc())
+	return line
+}
+
+// name returns the name of this function, if known.
+func (f Frame) name() string {
+	fn := runtime.FuncForPC(f.pc())
+	if fn == nil {
+		return "unknown"
+	}
+	return fn.Name()
+}
+
+// Format formats the frame according to the fmt.Formatter interface.
+//
+//    %s    source file
+//    %d    source line
+//    %n    function name
+//    %v    equivalent to %s:%d
+//
+// Format accepts flags that alter the printing of some verbs, as follows:
+//
+//    %+s   function name and path of source file relative to the compile time
+//          GOPATH separated by \n\t (<funcname>\n\t<path>)
+//    %+v   equivalent to %+s:%d
+func (f Frame) Format(s fmt.State, verb rune) {
+	switch verb {
+	case 's':
+		switch {
+		case s.Flag('+'):
+			io.WriteString(s, f.name())
+			io.WriteString(s, "\n\t")
+			io.WriteString(s, f.file())
+		default:
+			io.WriteString(s, path.Base(f.file()))
+		}
+	case 'd':
+		io.WriteString(s, strconv.Itoa(f.line()))
+	case 'n':
+		io.WriteString(s, funcname(f.name()))
+	case 'v':
+		f.Format(s, 's')
+		io.WriteString(s, ":")
+		f.Format(s, 'd')
+	}
+}
+
+// MarshalText formats a stacktrace Frame as a text string. The output is the
+// same as that of fmt.Sprintf("%+v", f), but without newlines or tabs.
+func (f Frame) MarshalText() ([]byte, error) {
+	name := f.name()
+	if name == "unknown" {
+		return []byte(name), nil
+	}
+	return []byte(fmt.Sprintf("%s %s:%d", name, f.file(), f.line())), nil
+}
+
+// StackTrace is stack of Frames from innermost (newest) to outermost (oldest).
+type StackTrace []Frame
+
+
+// Format formats the stack of Frames according to the fmt.Formatter interface.
+//
+//    %s	lists source files for each Frame in the stack
+//    %v	lists the source file and line number for each Frame in the stack
+//
+// Format accepts flags that alter the printing of some verbs, as follows:
+//
+//    %+v   Prints filename, function, and line number for each Frame in the stack.
+func (st StackTrace) Format(s fmt.State, verb rune) {
+	switch verb {
+	case 'v':
+		switch {
+		case s.Flag('+'):
+			for _, f := range st {
+				io.WriteString(s, "\n")
+				f.Format(s, verb)
+			}
+		case s.Flag('#'):
+			fmt.Fprintf(s, "%#v", []Frame(st))
+		default:
+			st.formatSlice(s, verb)
+		}
+	case 's':
+		st.formatSlice(s, verb)
+	}
+}
+
+// formatSlice will format this StackTrace into the given buffer as a slice of
+// Frame, only valid when called with '%s' or '%v'.
+func (st StackTrace) formatSlice(s fmt.State, verb rune) {
+	io.WriteString(s, "[")
+	for i, f := range st {
+		if i > 0 {
+			io.WriteString(s, " ")
+		}
+		f.Format(s, verb)
+	}
+	io.WriteString(s, "]")
+}
+
+// stack represents a stack of program counters.
+type stack []uintptr
+
+func (s *stack) Format(st fmt.State, verb rune) {
+	switch verb {
+	case 'v':
+		switch {
+		case st.Flag('+'):
+			for _, pc := range *s {
+				f := Frame(pc)
+				fmt.Fprintf(st, "\n%+v", f)
+			}
+		}
+	}
+}
+
+func (s *stack) StackTrace() StackTrace {
+	f := make([]Frame, len(*s))
+	for i := 0; i < len(f); i++ {
+		f[i] = Frame((*s)[i])
+	}
+	return f
+}
+
+func callers() *stack {
+	const depth = 32
+	var pcs [depth]uintptr
+	n := runtime.Callers(3, pcs[:])
+	var st stack = pcs[0:n]
+	return &st
+}
+
+// funcname removes the path prefix component of a function's name reported by func.Name().
+func funcname(name string) string {
+	i := strings.LastIndex(name, "/")
+	name = name[i+1:]
+	i = strings.Index(name, ".")
+	return name[i+1:]
+}
+
+func ErrorChain(err error) []string {
+	var results []string
+	if err == nil {
+		return results
+	}
+	depth := 0
+	next := err
+	for {
+		if depth > 10 {
+			break
+		}
+		results = append(results, next.Error())
+
+		next = go_errors.Unwrap(next)
+		if next == nil {
+			break
+		}
+
+		depth = depth + 1
+	}
+	return results
+}
 `))
 
 var testTemplate = template.Must(template.New("").Funcs(template.FuncMap{
@@ -443,7 +655,12 @@ import (
 
 {{ range .Codes }}
 func Test{{ .Label }} (t *testing.T) {
-    err1 := {{ .Label }}Error{}
+    err1 := New{{ .Label }}Error(nil)
+	{
+	err1, ok := err1.({{ .Label }}Error)
+    if !ok {
+		t.Errorf("Assertion failed on {{ .Label }}: %T is not {{ .Label }}Error", err1)
+	}
     if err1.Prefix() != "{{ .Prefix }}" {
 		t.Errorf("Assertion failed on {{ .Label }}: %s != {{ .Prefix }}", err1.Prefix())
     }
@@ -453,13 +670,19 @@ func Test{{ .Label }} (t *testing.T) {
     if err1.Description() != "{{ .Description }}" {
 		t.Errorf("Assertion failed on {{ .Label }}: %s != {{ .Description }}", err1.Description())
     }
+	}
 
 	errNotFound := fmt.Errorf("not found")
 	errThingNotFound := fmt.Errorf("thing: %w", errNotFound)
-	err2 := {{ .Label }}Error{ Err: errThingNotFound }
+	err2 := New{{ .Label }}Error(errThingNotFound)
+	{
+    err2, ok := err2.({{ .Label }}Error)
+    if !ok {
+		t.Errorf("Assertion failed on {{ .Label }}: %T is not {{ .Label }}Error", err2)
+	}
 	errNestErr2 := fmt.Errorf("oh snap: %w", err2)
     if err2.Code() != {{ .Code }} {
-		t.Errorf("Assertion failed on {{ .Label }}: %d != {{ .Code }}", err1.Code())
+		t.Errorf("Assertion failed on {{ .Label }}: %d != {{ .Code }}", err2.Code())
     }
     if !errors.Is(err2, errNotFound) {
 		t.Errorf("Assertion failed on {{ .Label }}: errNotFound not unwrapped correctly")
@@ -473,11 +696,12 @@ func Test{{ .Label }} (t *testing.T) {
     if !errors.Is(errNestErr2, {{ .Label }}Error{}) {
 		t.Errorf("Assertion failed on {{ .Label }}: {{ .Label }}Error{} not identified correctly")
     }
-{{ if .ParentLabel }}
+{{ if .ParentLabel -}}
     if !errors.Is(err2, {{ .ParentLabel }}Error{}) {
 		t.Errorf("Assertion failed on {{ .Label }}: {{ .ParentLabel }}Error{} not identified correctly")
     }
 {{ end }}
+	}
 }
 {{ end }}
 
