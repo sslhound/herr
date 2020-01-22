@@ -307,7 +307,7 @@ func (e errorInfo) Serialized() string {
 
 // SerializeCode serializes a number into a english-friendly string.
 func SerializeCode(code uint) string {
-	if code <= uint(len(codeCharacters)) {
+	if code < uint(len(codeCharacters)) {
 		return Left(string(codeCharacters[code]), 8, string(codeCharacters[0]))
 	}
 	places := make([]string, 50)

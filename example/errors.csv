@@ -5,3 +5,37 @@
 5                     ,MOBAND,InvalidAndroidDevice ,The Android device is invalid.
 4                     ,MOBAND,InvalidAndroidVersion,The Android version is invalid.
 6                     ,DBG   ,DebugErrorThree      ,The third debug error          ,DebugErrorTwo
+
+7,DBG,DebugSeven,An error.
+8,DBG,DebugEight,An error.
+9,DBG,DebugNine,An error.
+10,DBG,DebugTen,An error.
+11,DBG,DebugEleven,An error.
+12,DBG,DebugTwelve,An error.
+13,DBG,DebugThirteen,An error.
+14,DBG,DebugFourteen,An error.
+15,DBG,DebugFifteen,An error.
+16,DBG,DebugSixteen,An error.
+17,DBG,DebugSeventeen,An error.
+18,DBG,DebugEighteen,An error.
+19,DBG,DebugNineteen,An error.
+20,DBG,DebugTwenty,An error.
+21,DBG,DebugTwentyOne,An error.
+22,DBG,DebugTwentyTwo,An error.
+23,DBG,DebugTwentyThree,An error.
+24,DBG,DebugTwentyFour,An error.
+25,DBG,DebugTwentyFive,An error.
+26,DBG,DebugTwentySix,An error.
+27,DBG,DebugTwentySeven,An error.
+28,DBG,DebugTwentyEight,An error.
+29,DBG,DebugTwentyNine,An error.
+30,DBG,DebugThirty,An error.
+31,DBG,DebugThirtyOne,An error.
+32,DBG,DebugThirtyTwo,An error.
+33,DBG,DebugThirtyThree,An error.
+34,DBG,DebugThirtyFour,An error.
+35,DBG,DebugThirtyFive,An error.
+36,DBG,DebugThirtySix,An error.
+37,DBG,DebugThirtySeven,An error.
+38,DBG,DebugThirtyEight,An error.
+39,DBG,DebugThirtyNine,An error.
